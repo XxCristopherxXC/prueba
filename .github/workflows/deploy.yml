@@ -127,7 +127,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           ./mvnw verify sonar:sonar \
-          -Dsonar.projectKey=bdget-project \
+          -Dsonar.projectKey=XxCristopherxXC_prueba \
           -Dsonar.organization=xxcristopherxxc \
           -Dsonar.host.url=https://sonarcloud.io \
           -Dsonar.token=$SONAR_TOKEN \
