@@ -29,12 +29,9 @@ jobs:
       - name: Install Snyk
         run: npm install -g snyk
 
-      - name: Authenticate Snyk
-        run: snyk auth ${{ secrets.SNYK_TOKEN }}
-
-      # Ejecuta Snyk dentro de tu subcarpeta sin romper el pipeline si halla vulnerabilidades
+      # Se ejecuta Snyk inyectando el token directamente para evitar el bloqueo del navegador
       - name: Run Snyk (non-blocking)
-        run: snyk test --file=pom.xml || true
+        run: snyk test --file=pom.xml --token=${{ secrets.SNYK_TOKEN }} || true
         working-directory: bdget-main
 
       # Genera reporte válido para evidencia
