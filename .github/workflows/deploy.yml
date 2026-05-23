@@ -175,17 +175,17 @@ jobs:
       - name: Log in to DockerHub
         uses: docker/login-action@v2 
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: crbarrueto
+          password: ${{ secrets.DOCKER }}
 
-      # Construye y etiqueta usando explícitamente tu usuario XxCristopherxXC
+      # Construye y etiqueta usando tu usuario correcto de DockerHub
       - name: Build Docker Image
-        run: docker build -t XxCristopherxXC/bdget:latest .
+        run: docker build -t crbarrueto/bdget:latest .
         working-directory: bdget-main
 
       # Sube la imagen a tu repositorio de DockerHub
       - name: Push Docker Image
-        run: docker push XxCristopherxXC/bdget:latest
+        run: docker push crbarrueto/bdget:latest
 
       - name: Set up AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -201,12 +201,12 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-      # Conexión SSH a tu servidor AWS EC2 para actualizar el contenedor de tu app
+      # Conexión SSH a tu servidor AWS EC2 para actualizar el contenedor con la nueva imagen
       - name: SSH commands to deploy
         run: |
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${{ secrets.USER_SERVER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u XxCristopherxXC --password-stdin
-            docker pull XxCristopherxXC/bdget:latest
+            echo "${{ secrets.DOCKER }}" | docker login -u crbarrueto --password-stdin
+            docker pull crbarrueto/bdget:latest
             docker stop bdget || true && docker rm bdget || true
-            docker run -d --name bdget -p 8080:8080 XxCristopherxXC/bdget:latest
+            docker run -d --name bdget -p 8080:8080 crbarrueto/bdget:latest
           EOF
