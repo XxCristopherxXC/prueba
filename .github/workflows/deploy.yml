@@ -73,7 +73,7 @@ jobs:
         run: chmod +x mvnw
         working-directory: bdget-main
 
-      # Inyección de propiedades necesarias para levantar el contexto en pruebas si aplica
+      # Inyección de propiedades necesarias para levantar el contexto de tu base de datos
       - name: Update db credentials for testing
         run: |
           db_url_escaped=$(printf '%s\n' "${{ secrets.DB_URL }}" | sed 's/[&/\]/\\&/g')
@@ -131,6 +131,7 @@ jobs:
         run: |
           ./mvnw verify sonar:sonar \
           -Dsonar.projectKey=bdget-project \
+          -Dsonar.organization=xxcristopherxxc \
           -Dsonar.host.url=https://sonarcloud.io \
           -Dsonar.token=$SONAR_TOKEN \
           -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
@@ -180,12 +181,14 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Construye y etiqueta usando explícitamente tu usuario XxCristopherxXC
       - name: Build Docker Image
-        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/bdget:latest .
+        run: docker build -t XxCristopherxXC/bdget:latest .
         working-directory: bdget-main
 
+      # Sube la imagen a tu repositorio de DockerHub
       - name: Push Docker Image
-        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/bdget:latest
+        run: docker push XxCristopherxXC/bdget:latest
 
       - name: Set up AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -201,11 +204,12 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
+      # Conexión SSH a tu servidor AWS EC2 para actualizar el contenedor de tu app
       - name: SSH commands to deploy
         run: |
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${{ secrets.USER_SERVER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/bdget:latest
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u XxCristopherxXC --password-stdin
+            docker pull XxCristopherxXC/bdget:latest
             docker stop bdget || true && docker rm bdget || true
-            docker run -d --name bdget -p 8080:8080 ${{ secrets.DOCKERHUB_USERNAME }}/bdget:latest
+            docker run -d --name bdget -p 8080:8080 XxCristopherxXC/bdget:latest
           EOF
