@@ -29,18 +29,12 @@ jobs:
       - name: Install Snyk
         run: npm install -g snyk
 
-      # Se ejecuta Snyk inyectando el token directamente para evitar el bloqueo del navegador
-      - name: Run Snyk (non-blocking)
-        run: snyk test --file=pom.xml --token=${{ secrets.SNYK_TOKEN }} || true
-        working-directory: bdget-main
-
-      # Genera reporte válido para evidencia
-      - name: Generate Snyk Report (safe)
+      # Ejecuta Snyk y guarda los resultados reales en un JSON sin romper el pipeline
+      - name: Run Snyk and Generate Report
         run: |
-          echo '{"status":"completed","message":"Snyk executed in CI"}' > snyk-report.json
+          snyk test --file=pom.xml --token=${{ secrets.SNYK_TOKEN }} --json > snyk-report.json || true
         working-directory: bdget-main
 
-      # Guarda el reporte como artefacto
       - name: Upload Snyk Report
         uses: actions/upload-artifact@v4
         with:
@@ -65,12 +59,10 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # Damos permisos al wrapper local antes de ejecutarlo
       - name: Grant execute permission for mvnw
         run: chmod +x mvnw
         working-directory: bdget-main
 
-      # Inyección de propiedades necesarias para levantar el contexto de tu base de datos
       - name: Update db credentials for testing
         run: |
           db_url_escaped=$(printf '%s\n' "${{ secrets.DB_URL }}" | sed 's/[&/\]/\\&/g')
@@ -122,11 +114,19 @@ jobs:
         run: chmod +x mvnw
         working-directory: bdget-main
 
+      # Se descargan los reportes de JaCoCo generados previamente
+      - name: Download JaCoCo Report
+        uses: actions/download-artifact@v4
+        with:
+          name: jacoco-report
+          path: bdget-main/target/site/jacoco/
+
+      # Se ejecuta Sonar sin volver a compilar ni correr tests repetidos
       - name: Run SonarCloud
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          ./mvnw verify sonar:sonar \
+          ./mvnw sonar:sonar \
           -Dsonar.projectKey=XxCristopherxXC_prueba \
           -Dsonar.organization=xxcristopherxxc \
           -Dsonar.host.url=https://sonarcloud.io \
@@ -156,7 +156,6 @@ jobs:
         run: chmod +x mvnw
         working-directory: bdget-main
 
-      # Asegurar inyección final limpia de producción en el properties
       - name: Inject production secrets
         run: |
           db_url_escaped=$(printf '%s\n' "${{ secrets.DB_URL }}" | sed 's/[&/\]/\\&/g')
@@ -172,18 +171,17 @@ jobs:
         run: ./mvnw clean package -DskipTests
         working-directory: bdget-main
 
+      # CORREGIDO: Ahora utiliza de forma dinámica los secretos exactos de tu captura de pantalla
       - name: Log in to DockerHub
-        uses: docker/login-action@v2 
+        uses: docker/login-action@v3
         with:
-          username: crbarrueto
-          password: ${{ secrets.DOCKER }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUP }}
 
-      # Construye y etiqueta usando tu usuario correcto de DockerHub
       - name: Build Docker Image
         run: docker build -t crbarrueto/bdget:latest .
         working-directory: bdget-main
 
-      # Sube la imagen a tu repositorio de DockerHub
       - name: Push Docker Image
         run: docker push crbarrueto/bdget:latest
 
@@ -201,11 +199,14 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-      # Conexión SSH a tu servidor AWS EC2 para actualizar el contenedor con la nueva imagen
+      # CORREGIDO: Envío seguro de variables de entorno hacia la máquina EC2 remota
       - name: SSH commands to deploy
+        env:
+          DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKERHUP }}
         run: |
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${{ secrets.USER_SERVER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            echo "${{ secrets.DOCKER }}" | docker login -u crbarrueto --password-stdin
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${{ secrets.USER_SERVER }}@${{ secrets.EC2_HOST }} "DOCKER_USER='$DOCKER_USER' DOCKER_PASSWORD='$DOCKER_PASSWORD'" 'bash -s' << 'EOF'
+            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USER" --password-stdin
             docker pull crbarrueto/bdget:latest
             docker stop bdget || true && docker rm bdget || true
             docker run -d --name bdget -p 8080:8080 crbarrueto/bdget:latest
