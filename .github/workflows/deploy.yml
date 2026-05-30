@@ -29,7 +29,7 @@ jobs:
       - name: Install Snyk
         run: npm install -g snyk
 
-      # Ejecuta Snyk y guarda los resultados reales en un JSON sin romper el pipeline
+      # Corre el test de verdad y exporta los resultados reales a un JSON sin romper el pipeline
       - name: Run Snyk and Generate Report
         run: |
           snyk test --file=pom.xml --token=${{ secrets.SNYK_TOKEN }} --json > snyk-report.json || true
@@ -84,6 +84,7 @@ jobs:
         run: ./mvnw clean verify
         working-directory: bdget-main
 
+      # Subimos tanto el reporte XML como el sitio para reusarlo en Sonar y guardarlo como evidencia
       - name: Upload JaCoCo Report
         uses: actions/upload-artifact@v4
         with:
@@ -114,21 +115,14 @@ jobs:
         run: chmod +x mvnw
         working-directory: bdget-main
 
-      # 🚀 NUEVO: Reutiliza la caché de dependencias para que no descargue todo otra vez
-      - name: Cache Maven
-        uses: actions/cache@v3
-        with:
-          path: ~/.m2
-          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-
-      # Descargamos los reportes de JaCoCo generados previamente
+      # Descargamos los reportes generados en el paso de Test para no volver a ejecutar los tests
       - name: Download JaCoCo Report
         uses: actions/download-artifact@v4
         with:
           name: jacoco-report
           path: bdget-main/target/site/jacoco/
 
-      # Se ejecuta Sonar usando la caché cargada
+      # Usamos sonar:sonar directamente especificando la ruta del reporte XML descargado
       - name: Run SonarCloud
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -178,12 +172,11 @@ jobs:
         run: ./mvnw clean package -DskipTests
         working-directory: bdget-main
 
-      # CORREGIDO: Ahora utiliza de forma dinámica los secretos exactos de tu captura de pantalla
       - name: Log in to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v2 
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUP }}
+          username: crbarrueto
+          password: ${{ secrets.DOCKER }}
 
       - name: Build Docker Image
         run: docker build -t crbarrueto/bdget:latest .
@@ -206,14 +199,13 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-      # CORREGIDO: Envío seguro de variables de entorno hacia la máquina EC2 remota
+      # Pasamos de forma segura el token de Docker usando variables de entorno de SSH
       - name: SSH commands to deploy
         env:
-          DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKERHUP }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER }}
         run: |
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${{ secrets.USER_SERVER }}@${{ secrets.EC2_HOST }} "DOCKER_USER='$DOCKER_USER' DOCKER_PASSWORD='$DOCKER_PASSWORD'" 'bash -s' << 'EOF'
-            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USER" --password-stdin
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${{ secrets.USER_SERVER }}@${{ secrets.EC2_HOST }} "DOCKER_PASSWORD='$DOCKER_PASSWORD'" 'bash -s' << 'EOF'
+            echo "$DOCKER_PASSWORD" | docker login -u crbarrueto --password-stdin
             docker pull crbarrueto/bdget:latest
             docker stop bdget || true && docker rm bdget || true
             docker run -d --name bdget -p 8080:8080 crbarrueto/bdget:latest
