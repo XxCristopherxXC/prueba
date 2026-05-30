@@ -175,8 +175,8 @@ jobs:
       - name: Log in to DockerHub
         uses: docker/login-action@v2 
         with:
-          username: crbarrueto
-          password: ${{ secrets.DOCKER }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUP }}
 
       # Construye y etiqueta usando tu usuario correcto de DockerHub
       - name: Build Docker Image
