@@ -134,7 +134,7 @@ jobs:
           -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
         working-directory: bdget-main
 
-  # =========================
+  # ========================
   # 🧱 4. BUILD & DEPLOY (DOCKER + AWS)
   # =========================
   deploy:
